@@ -741,7 +741,15 @@ def process_audio():
                 print("[process-audio] Direct transcription success:", transcript[:200])
 
                 # forward client timezone into the internal call
-                client_tz = request.headers.get('X-Client-Timezone') or None
+                client_tz = None
+                # prefer form field (from FormData), fallback to header
+                try:
+                    client_tz = (request.form.get('client_timezone') or None)
+                except Exception:
+                    client_tz = None
+                if not client_tz:
+                    client_tz = request.headers.get('X-Client-Timezone') or None
+
                 forward_json = {'text': transcript}
                 if client_tz:
                     forward_json['client_timezone'] = client_tz
@@ -809,7 +817,15 @@ def process_audio():
 
         print("[process-audio] Transcription (after conversion) OK:", transcript[:200])
         try:
-            client_tz = request.headers.get('X-Client-Timezone') or None
+            client_tz = None
+            # prefer form field (from FormData), fallback to header
+            try:
+                client_tz = (request.form.get('client_timezone') or None)
+            except Exception:
+                client_tz = None
+            if not client_tz:
+                client_tz = request.headers.get('X-Client-Timezone') or None
+
             forward_json = {'text': transcript}
             if client_tz:
                 forward_json['client_timezone'] = client_tz

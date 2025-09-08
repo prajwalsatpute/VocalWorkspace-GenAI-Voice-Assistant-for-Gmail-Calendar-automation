@@ -149,38 +149,48 @@ recordBtn.onclick = async () => {
     const blob = new Blob(chunks, {type:'audio/webm'});
     const fd = new FormData();
     fd.append('audio', blob, 'voice.webm');
+    // append timezone into the form so server can read it reliably
+    fd.append('client_timezone', getClientTimezone() || '');
 
     // show uploading status
     transcriptDiv.innerText = 'Uploading audio for transcription...';
     responseDiv.innerText = '';
 
     try {
-      const r = await fetch('/process-audio', {
-        method: 'POST',
-        body: fd,
-        headers: {
-          'X-Client-Timezone': getClientTimezone() || ''
-        }
-      });
-
-      const data = await r.json();
-
-      if (r.ok) {
-        // show transcript if provided
-        if (data.transcript) {
-          transcriptDiv.innerText = 'Transcription: ' + data.transcript;
-        }
-        // centralized handling for polished/draft/clarify/calendar responses
-        await handleServerResponse(data);
-      } else {
-        // show error info
-        const errMsg = (data && data.message) ? data.message : `Transcription failed (status ${r.status})`;
+      const r = await fetch('/process-audio', { method:'POST', body: fd });
+      // always try to parse JSON if server returned JSON (it will for auth_required)
+      let data = null;
+      try {
+        data = await r.json();
+      } catch (e) {
+        // Non-JSON response (rare) -> show text
+        const txt = await r.text();
         transcriptDiv.innerText = '';
-        responseDiv.innerText = 'Error: ' + errMsg;
-        if (data && data.detail) {
-          console.error('Transcription detail:', data.detail);
+        responseDiv.innerText = 'Transcription failed (non-JSON response). See console for details.';
+        console.error('Non-JSON /process-audio response:', txt);
+        return;
+      }
+
+      // If transcript present, show it
+      if (data && data.transcript) {
+        transcriptDiv.innerText = 'Transcription: ' + data.transcript;
+      }
+
+      // Always forward the server response into the centralized handler. This ensures
+      // auth_required is handled the same way as the Speak flow.
+      await handleServerResponse(data);
+
+      // If server returned an http error code (e.g., 401) but also JSON, show details
+      if (!r.ok) {
+        const errMsg = (data && data.message) ? data.message : `HTTP ${r.status}`;
+        console.warn('/process-audio returned non-OK status:', r.status, data);
+        // Optionally show short user-visible message (auth_required is handled above)
+        if (data && data.status !== 'auth_required') {
+          responseDiv.innerText = 'Error: ' + errMsg;
         }
       }
+
+
 
     } catch (err) {
       transcriptDiv.innerText = '';
