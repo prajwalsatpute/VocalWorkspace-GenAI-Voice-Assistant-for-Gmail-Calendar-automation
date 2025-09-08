@@ -20,6 +20,37 @@ load_dotenv()
 openai_client = OpenAI()
 
 GOOGLE_CREDS_FILE = os.environ.get("GOOGLE_CREDENTIALS_PATH", "credentials.json")
+if os.environ.get("GOOGLE_CREDENTIALS_JSON"):
+    try:
+        creds_obj = json.loads(os.environ["GOOGLE_CREDENTIALS_JSON"])
+        with open(GOOGLE_CREDS_FILE, "w") as _f:
+            json.dump(creds_obj, _f)
+        try:
+            # Restrict file permissions where possible (owner read/write only)
+            os.chmod(GOOGLE_CREDS_FILE, 0o600)
+        except Exception:
+            pass
+        print(f"[startup] Wrote Google credentials to {GOOGLE_CREDS_FILE} from env var.")
+    except json.JSONDecodeError:
+        print("[startup] GOOGLE_CREDENTIALS_JSON is not valid JSON.")
+    except Exception as e:
+        print("[startup] Failed to write GOOGLE_CREDENTIALS_JSON to file:", e)
+
+if os.environ.get("GOOGLE_TOKEN_JSON"):
+    try:
+        token_obj = json.loads(os.environ["GOOGLE_TOKEN_JSON"])
+        with open("token.json", "w") as _f:
+            json.dump(token_obj, _f)
+        try:
+            os.chmod("token.json", 0o600)
+        except Exception:
+            pass
+        print("[startup] Wrote token.json from env var.")
+    except json.JSONDecodeError:
+        print("[startup] GOOGLE_TOKEN_JSON is not valid JSON.")
+    except Exception as e:
+        print("[startup] Failed to write GOOGLE_TOKEN_JSON to token.json:", e)
+        
 SCOPES = [
     'https://www.googleapis.com/auth/gmail.send',
     'https://www.googleapis.com/auth/calendar.events',
