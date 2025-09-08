@@ -19,8 +19,8 @@ This is a assignment project that builds a **voice-enabled assistant** for Gmail
 ---
 
 # NOTE : 
-**- This README.md file is for local system setup, codes files(server.py & index.html) for local system are separately attached in different folder. But they follow same folder structure as per deployed.**
-**- These files are only separated just to prevent any confusions while running files on local system.**
+-** This README.md file is for local system setup, codes files(server.py & index.html) for local system are separately attached in different folder. But they follow same folder structure as per deployed.**
+- **These files are only separated just to prevent any confusions while running files on local system.**
 
 ## Dependencies  
 
