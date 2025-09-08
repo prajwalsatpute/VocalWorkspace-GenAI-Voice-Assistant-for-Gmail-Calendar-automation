@@ -46,6 +46,23 @@ function hidePolished() {
 // centralized response handler for process-text / process-audio results
 async function handleServerResponse(data) {
   if (!data) return;
+
+  // --- AUTH REQUIRED: open OAuth flow in new tab ---
+  if (data.status === 'auth_required') {
+    // Prefer auth_url from server; fallback to /login-google
+    const url = data.auth_url || window.location.origin + '/login-google';
+    // open in a new tab so user can interact with Google
+    window.open(url, '_blank', 'noopener');
+
+    // Inform the user what to do next
+    responseDiv.innerText = "Google authorization required — a new tab has been opened. Please complete authorization there, then come back and retry.";
+    if ('speechSynthesis' in window) {
+      speechSynthesis.speak(new SpeechSynthesisUtterance(responseDiv.innerText));
+    }
+    hidePolished();
+    return;
+  }
+
   // clarify
   if (data.status === 'clarify') {
     responseDiv.innerText = data.message || 'Please clarify.';
