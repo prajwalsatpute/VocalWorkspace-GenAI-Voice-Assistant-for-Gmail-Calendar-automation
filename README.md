@@ -153,3 +153,44 @@ requests
    
    This is because files contain sensitive information that can be misused.
    These files are to be created and instructions about the files are mentioned above.
+
+
+## Deployment (Render)
+
+A live deployment of this Voice Assistant is available on Render:
+
+- Public app URL: `https://voice-assistant-3h84.onrender.com`
+
+### How this deployment works
+
+- The backend is a Flask app (`app/server.py`) which exposes endpoints:
+  - `GET /` — serves `index.html`
+  - `POST /process-text` — handle text intent parsing and create calendar/email drafts
+  - `POST /process-audio` — accept audio upload, transcribe via OpenAI Whisper, then forward to `/process-text`
+  - `GET /login-google` and `GET /oauth2callback` — handle Google OAuth web flow
+  - `POST /confirm-send` — confirm and send a drafted email
+
+- This app uses user-scoped Google OAuth (web flow). When a browser request needs Google access and there is no usable `token.json`, the server returns JSON with `status: "auth_required"` and an `auth_url`. The client UI opens that URL in a new tab, user authorizes, and Google redirects to `/oauth2callback` which saves `token.json` on the server.
+
+### Render setup (notes / checklist)
+
+1. **Create a Web Service** on Render (Static/Docker not needed) and connect to this GitHub repository.
+2. **Build command**: leave blank or use default (Render autodetects). If you want:  
+
+### Required Environment Variables (set these in Render → Environment → Environment Variables)
+
+- `OPENAI_API_KEY` — API key for OpenAI (used for intent parsing and email polishing).
+- `GOOGLE_CREDENTIALS_JSON` — JSON string of your Google OAuth client credentials (the contents of the downloaded `credentials.json` from Google Cloud). The server writes this to a file on startup.
+- Alternatively, upload a `credentials.json` file to the repo (not recommended).
+- `GOOGLE_TOKEN_JSON` — optional: JSON of an existing `token.json` (so you pre-authorize the app). If not provided, users will be prompted to authorize in-browser.
+- `GOOGLE_OAUTH_REDIRECT_URI` — optional override for the OAuth redirect URI; otherwise the app uses its default `/oauth2callback`.
+- `PORT` — (not required) Render sets automatically.
+
+### How to authorize when visiting the public app
+
+1. Visit the app public URL mentioned above and try to schedule a meeting through **Speak Button**.
+2. The browser UI opens the Google auth URL in a new tab. Complete the consent flow and allow access. **For now access is inly given to `prajwal.satpute2000@gmail.com`.**
+3. After consent, Google redirects to `/oauth2callback`. The app stores `token.json` and you can return to the original tab to retry scheduling.
+
+**Note : Browser popups should be enabled.**
+
