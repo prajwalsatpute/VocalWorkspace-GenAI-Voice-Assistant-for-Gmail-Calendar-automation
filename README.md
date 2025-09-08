@@ -192,4 +192,4 @@ A live deployment of this Voice Assistant is available on Render:
 2. The browser UI opens the Google auth URL in a new tab. Complete the consent flow and allow access. **For now access is inly given to `prajwal.satpute2000@gmail.com`.**
 3. After consent, Google redirects to `/oauth2callback`. The app stores `token.json` and you can return to the original tab to retry scheduling.
 
-**Note : Browser popups should be enabled.**
+**Note : Browser popups should be enabled for google authorisation.**
