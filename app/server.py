@@ -14,6 +14,10 @@ from datetime import datetime, timedelta
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from email.message import EmailMessage
+from google.auth.transport.requests import Request as GoogleRequest
+from google.oauth2.credentials import Credentials as GoogleCredentials
+from google_auth_oauthlib.flow import Flow
+from flask import redirect, url_for
 
 load_dotenv()
 
@@ -63,49 +67,91 @@ app = Flask(__name__)
 def index():
     return app.send_static_file('index.html')
 
-# ---------- Simple auth helper ----------
-def get_google_credentials():
-    creds = None
-    token_path = 'token.json'
-    if os.path.exists(token_path):
-        from google.oauth2.credentials import Credentials
-        creds = Credentials.from_authorized_user_file(token_path, SCOPES)
-        if creds and creds.valid:
-            return creds
-
-    flow = InstalledAppFlow.from_client_secrets_file(GOOGLE_CREDS_FILE, SCOPES)
-
-    loopback_port = 53682
-    redirect_uri = f"http://localhost:{loopback_port}/"
-    try:
-        flow.redirect_uri = redirect_uri
-    except Exception:
-        pass
-
-    auth_url, _ = flow.authorization_url(
-        prompt='consent',
-        access_type='offline',
-        include_granted_scopes='true'
+@app.route("/login-google")
+def login_google():
+    # Build the Flow and redirect user to Google consent screen
+    redirect_uri = os.environ.get("GOOGLE_OAUTH_REDIRECT_URI") or url_for('oauth2callback', _external=True)
+    flow = Flow.from_client_secrets_file(
+        GOOGLE_CREDS_FILE,
+        scopes=SCOPES,
+        redirect_uri=redirect_uri
     )
+    auth_url, state = flow.authorization_url(
+        access_type='offline',      # request refresh token
+        include_granted_scopes='true',
+        prompt='consent'
+    )
+    return redirect(auth_url)
 
-    print("\nPlease open this URL in your browser (copy & paste):\n")
-    print(auth_url + "\n")
-    print("After you click Continue/Allow, Google will redirect your browser to something like:")
-    print(f"  {redirect_uri}?code=XXXX&scope=YYYY\n")
-    print("Copy the ENTIRE redirected URL from the browser address bar (it MUST contain '?code=') and paste it below.\n")
 
-    redirected = input("Paste the full redirect URL here: ").strip()
-
+@app.route("/oauth2callback")
+def oauth2callback():
+    redirect_uri = os.environ.get("GOOGLE_OAUTH_REDIRECT_URI") or url_for('oauth2callback', _external=True)
+    flow = Flow.from_client_secrets_file(
+        GOOGLE_CREDS_FILE,
+        scopes=SCOPES,
+        redirect_uri=redirect_uri
+    )
     try:
-        flow.fetch_token(authorization_response=redirected)
-        creds = flow.credentials
-        with open(token_path, 'w') as f:
-            f.write(creds.to_json())
-        print("Saved token.json — authorization complete.")
-        return creds
+        flow.fetch_token(authorization_response=request.url)
     except Exception as e:
-        print("Failed to fetch token from authorization response:", e)
-        raise
+        print("[oauth2callback] fetch_token failed:", e)
+        return "Authorization failed: " + str(e), 400
+
+    creds = flow.credentials
+    try:
+        with open("token.json", "w") as f:
+            f.write(creds.to_json())
+        try:
+            os.chmod("token.json", 0o600)
+        except Exception:
+            pass
+        print("[oauth2callback] token.json written successfully.")
+    except Exception as e:
+        print("[oauth2callback] Failed to write token.json:", e)
+        return "Failed to save credentials.", 500
+
+    return """
+    <h3>Google authorization complete.</h3>
+    <p>You can close this tab and return to the app.</p>
+    """
+
+# ---------- Simple auth helper (non-interactive) ----------
+def get_google_credentials():
+    """
+    Returns google.oauth2.credentials.Credentials if token.json exists and is valid.
+    If expired with refresh_token, attempt to refresh and save token.json.
+    If no usable credentials are available, return None (caller should redirect to /login-google).
+    """
+    token_path = "token.json"
+    creds = None
+
+    # Try to load existing token.json
+    if os.path.exists(token_path):
+        try:
+            creds = GoogleCredentials.from_authorized_user_file(token_path, SCOPES)
+        except Exception as e:
+            print("[get_google_credentials] Failed to load token.json:", e)
+            creds = None
+
+    # If expired and refresh token available, refresh
+    if creds and hasattr(creds, "expired") and creds.expired and getattr(creds, "refresh_token", None):
+        try:
+            creds.refresh(GoogleRequest())
+            with open(token_path, 'w') as f:
+                f.write(creds.to_json())
+            print("[get_google_credentials] Refreshed expired credentials.")
+            return creds
+        except Exception as e:
+            print("[get_google_credentials] Failed to refresh credentials:", e)
+            return None
+
+    # If valid, return
+    if creds and creds.valid:
+        return creds
+
+    # No usable credentials available
+    return None
 
 # ---------- Intent parsing prompt (OpenAI) ----------
 INTENT_PROMPT = """
@@ -463,6 +509,13 @@ def process_text():
     if parsed.get('clarify'):
         return jsonify({"status":"clarify", "questions": parsed['clarify'], "message": parsed['clarify'][0]})
     creds = get_google_credentials()
+    if not creds:
+        login_url = url_for('login_google', _external=True)
+        return jsonify({
+            "status": "auth_required",
+            "message": "Google authorization required. Please open the provided URL to authorize.",
+            "auth_url": login_url
+        }), 401
 
     try:
         # ---------------- Email handling (draft-first) ----------------

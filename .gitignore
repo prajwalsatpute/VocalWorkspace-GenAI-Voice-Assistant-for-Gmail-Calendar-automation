@@ -9,7 +9,9 @@ venv/
 .env
 credentials.json
 token.json
+credentials_web.json
 
 # OS / Editor files
 .DS_Store
 *.code-workspace
+
