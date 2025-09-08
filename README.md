@@ -142,9 +142,10 @@ requests
 - On first run, the server will ask you to copy-paste an **authorization URL** → complete login → paste redirect URL back.  
 - A `token.json` will be created so you don’t need to log in again.
 - Setting up venv is only for running code on local system.
-- Files which are not uploaded on Github and not Deployed:
+- **Files which are not uploaded on Github and not Deployed**:
    - .env
    - credentials.json
    - token.json
+   
    This is because files contain sensitive information that can be misused.
    These files are to be created and instructions about the files are mentioned above.
