@@ -23,7 +23,7 @@ load_dotenv()
 
 openai_client = OpenAI()
 
-GOOGLE_CREDS_FILE = os.environ.get("GOOGLE_CREDENTIALS_PATH", "credentials.json")
+GOOGLE_CREDS_FILE = os.environ.get("GOOGLE_CREDENTIALS_PATH", "credentials_web.json")
 if os.environ.get("GOOGLE_CREDENTIALS_JSON"):
     try:
         creds_obj = json.loads(os.environ["GOOGLE_CREDENTIALS_JSON"])
@@ -467,10 +467,26 @@ def calendar_create_event(creds, start_iso, end_iso, summary, attendees_emails=N
 # ---------- API endpoints ----------
 @app.route('/process-text', methods=['POST'])
 def process_text():
-    data = request.json
+    data = request.json or {}
     text = data.get('text','')
+
+    # read client timezone provided by the browser (preferred)
+    client_tz = None
+    if isinstance(data, dict):
+        client_tz = data.get('client_timezone') or None
+    # fallback to header if browser sent it that way
+    if not client_tz:
+        client_tz = request.headers.get('X-Client-Timezone') or None
+
+    # parse intent from LLM
     parsed = parse_intent_with_openai(text)
+
+    # if client timezone provided by browser, prefer that (use before normalization)
+    if client_tz:
+        parsed['timezone'] = client_tz
+
     try:
+
         text_lower = (text or "").lower()
         relative_terms = ["today", "tomorrow", "tonight", "this morning", "this afternoon", "this evening", "next "]
         is_relative = any(rt in text_lower for rt in relative_terms)
@@ -723,11 +739,17 @@ def process_audio():
 
             if transcript:
                 print("[process-audio] Direct transcription success:", transcript[:200])
-                resp2 = app.test_client().post('/process-text', json={'text': transcript})
+
+                # forward client timezone into the internal call
+                client_tz = request.headers.get('X-Client-Timezone') or None
+                forward_json = {'text': transcript}
+                if client_tz:
+                    forward_json['client_timezone'] = client_tz
+
+                resp2 = app.test_client().post('/process-text', json=forward_json)
                 forwarded = resp2.get_json()
                 return jsonify({"status":"ok","transcript": transcript, **(forwarded or {})})
-            else:
-                print("[process-audio] Direct transcription returned empty text; will try conversion.")
+
         else:
             try:
                 err_json = resp.json()
@@ -787,7 +809,12 @@ def process_audio():
 
         print("[process-audio] Transcription (after conversion) OK:", transcript[:200])
         try:
-            resp2 = app.test_client().post('/process-text', json={'text': transcript})
+            client_tz = request.headers.get('X-Client-Timezone') or None
+            forward_json = {'text': transcript}
+            if client_tz:
+                forward_json['client_timezone'] = client_tz
+
+            resp2 = app.test_client().post('/process-text', json=forward_json)
             forwarded = resp2.get_json()
         except Exception as e:
             print("[process-audio] failed to forward transcript to /process-text:")

@@ -29,6 +29,15 @@ const sendStatus = document.getElementById('send-status');
 
 let lastDraftId = null;
 
+// add this helper near the top of your script
+function getClientTimezone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+  } catch (e) {
+    return null;
+  }
+}
+
 function showPolished(polishedText, draftId) {
   polishedBox.innerText = polishedText || '(empty)';
   lastDraftId = draftId || null;
@@ -110,8 +119,12 @@ startBtn.onclick = async () => {
     const r = await fetch('/process-text', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({text})
+      body: JSON.stringify({
+        text,
+        client_timezone: getClientTimezone()
+      })
     });
+
     const data = await r.json();
     await handleServerResponse(data);
 
@@ -142,7 +155,14 @@ recordBtn.onclick = async () => {
     responseDiv.innerText = '';
 
     try {
-      const r = await fetch('/process-audio', {method:'POST', body: fd});
+      const r = await fetch('/process-audio', {
+        method: 'POST',
+        body: fd,
+        headers: {
+          'X-Client-Timezone': getClientTimezone() || ''
+        }
+      });
+
       const data = await r.json();
 
       if (r.ok) {
