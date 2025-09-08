@@ -1,0 +1,209 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Voice Assistant Demo</title></head>
+<body>
+  <h2>Voice Assistant (demo)</h2>
+
+  <button id="start-recognition">Speak (Web Speech API)</button>
+  <button id="record-upload">Record & Upload (fallback)</button>
+  <div id="transcript"></div>
+  <div id="response"></div>
+    <!-- Polished email preview + Send Now -->
+  <div id="polished-area" style="display:none; margin-top:12px;">
+    <div id="polished-box" style="border:1px solid #ddd; padding:10px; background:#fafafa; white-space:pre-wrap;"></div>
+    <button id="send-now" style="margin-top:8px;">Send Now</button>
+    <div id="send-status" style="margin-top:8px;color:green;"></div>
+  </div>
+
+
+<script>
+/* --- Quick SpeechRecognition path --- */
+const startBtn = document.getElementById('start-recognition');
+const transcriptDiv = document.getElementById('transcript');
+const responseDiv = document.getElementById('response');
+// Polished-preview elements + state
+const polishedArea = document.getElementById('polished-area');
+const polishedBox = document.getElementById('polished-box');
+const sendNowBtn = document.getElementById('send-now');
+const sendStatus = document.getElementById('send-status');
+
+let lastDraftId = null;
+
+function showPolished(polishedText, draftId) {
+  polishedBox.innerText = polishedText || '(empty)';
+  lastDraftId = draftId || null;
+  polishedArea.style.display = 'block';
+  sendStatus.innerText = '';
+}
+
+function hidePolished() {
+  polishedArea.style.display = 'none';
+  polishedBox.innerText = '';
+  lastDraftId = null;
+  sendStatus.innerText = '';
+}
+
+// centralized response handler for process-text / process-audio results
+async function handleServerResponse(data) {
+  if (!data) return;
+  // clarify
+  if (data.status === 'clarify') {
+    responseDiv.innerText = data.message || 'Please clarify.';
+    if ('speechSynthesis' in window && data.message) {
+      speechSynthesis.speak(new SpeechSynthesisUtterance(data.message));
+    }
+    hidePolished();
+    return;
+  }
+
+  // email draft returned with polished + draft_id
+  if (data.polished) {
+    responseDiv.innerText = data.message || 'Draft created.';
+    showPolished(data.polished, data.draft_id);
+    if ('speechSynthesis' in window && data.message) {
+      speechSynthesis.speak(new SpeechSynthesisUtterance(data.message));
+    }
+    return;
+  }
+
+  // normal non-email responses (calendar, errors, etc.)
+  responseDiv.innerText = data.message || JSON.stringify(data);
+  if ('speechSynthesis' in window && data.message) {
+    speechSynthesis.speak(new SpeechSynthesisUtterance(data.message));
+  }
+  hidePolished();
+}
+
+
+if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+  startBtn.disabled = true;
+  startBtn.innerText = 'Browser Speech Recognition unsupported';
+}
+
+startBtn.onclick = async () => {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const recog = new SpeechRecognition();
+  recog.lang = 'en-US';
+  recog.interimResults = false;
+  recog.maxAlternatives = 1;
+  recog.onresult = async (e) => {
+    const text = e.results[0][0].transcript;
+    transcriptDiv.innerText = 'You said: ' + text;
+    // send to backend for processing
+    const r = await fetch('/process-text', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({text})
+    });
+    const data = await r.json();
+    await handleServerResponse(data);
+
+  };
+  recog.start();
+}
+
+/* --- Recording & uploading path (fallback) --- */
+const recordBtn = document.getElementById('record-upload');
+let mediaRecorder;
+recordBtn.onclick = async () => {
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    mediaRecorder.stop();
+    recordBtn.innerText = 'Record & Upload';
+    return;
+  }
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+  const chunks = [];
+  mediaRecorder.ondataavailable = e => chunks.push(e.data);
+  mediaRecorder.onstop = async () => {
+    const blob = new Blob(chunks, {type:'audio/webm'});
+    const fd = new FormData();
+    fd.append('audio', blob, 'voice.webm');
+
+    // show uploading status
+    transcriptDiv.innerText = 'Uploading audio for transcription...';
+    responseDiv.innerText = '';
+
+    try {
+      const r = await fetch('/process-audio', {method:'POST', body: fd});
+      const data = await r.json();
+
+      if (r.ok) {
+        // show transcript if provided
+        if (data.transcript) {
+          transcriptDiv.innerText = 'Transcription: ' + data.transcript;
+        }
+        // centralized handling for polished/draft/clarify/calendar responses
+        await handleServerResponse(data);
+      } else {
+        // show error info
+        const errMsg = (data && data.message) ? data.message : `Transcription failed (status ${r.status})`;
+        transcriptDiv.innerText = '';
+        responseDiv.innerText = 'Error: ' + errMsg;
+        if (data && data.detail) {
+          console.error('Transcription detail:', data.detail);
+        }
+      }
+
+    } catch (err) {
+      transcriptDiv.innerText = '';
+      responseDiv.innerText = 'Upload/transcription error: ' + err.toString();
+      console.error(err);
+    }
+  };
+
+  mediaRecorder.start();
+  recordBtn.innerText = 'Stop & Upload';
+}
+
+sendNowBtn.onclick = async () => {
+  if (!lastDraftId) {
+    sendStatus.innerText = 'No draft to send.';
+    return;
+  }
+  sendStatus.innerText = 'Sending...';
+  try {
+    const r = await fetch('/confirm-send', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({draft_id: lastDraftId})
+    });
+
+    // if server returned non-JSON (HTML error page), read as text and show it
+    const ct = r.headers.get('content-type') || '';
+    if (!ct.includes('application/json')) {
+      const txt = await r.text();
+      console.error('Non-JSON response from /confirm-send:', txt);
+      sendStatus.innerText = 'Server error: check logs (non-JSON response).';
+      // show a short snippet of the HTML so you can see the error quickly
+      const snippet = txt.substring(0, 1000);
+      responseDiv.innerText = 'Server returned non-JSON response (see console for full).';
+      console.error('Response snippet:', snippet);
+      return;
+    }
+
+    // safe to parse JSON
+    const data = await r.json();
+
+    if (r.ok && data.status === 'ok') {
+      sendStatus.innerText = 'Email sent successfully.';
+      responseDiv.innerText = data.message || 'Email sent.';
+      if ('speechSynthesis' in window && data.message) {
+        speechSynthesis.speak(new SpeechSynthesisUtterance(data.message));
+      }
+      hidePolished();
+    } else {
+      // backend returned JSON error
+      const errMsg = (data && data.message) ? data.message : ('HTTP ' + r.status);
+      sendStatus.innerText = 'Error sending: ' + errMsg;
+      responseDiv.innerText = (data && data.raw) ? JSON.stringify(data.raw) : errMsg;
+      console.error('confirm-send error response:', data);
+    }
+  } catch (err) {
+    sendStatus.innerText = 'Network error: ' + err.toString();
+    console.error('Network/JS error calling /confirm-send:', err);
+  }
+};
+</script>
+</body>
+</html>

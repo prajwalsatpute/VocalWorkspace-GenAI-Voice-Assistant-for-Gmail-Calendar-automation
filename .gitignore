@@ -1,0 +1,15 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Virtual environment
+venv/
+
+# Sensitive files
+.env
+credentials.json
+token.json
+
+# OS / Editor files
+.DS_Store
+*.code-workspace
