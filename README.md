@@ -19,7 +19,7 @@ This is a assignment project that builds a **voice-enabled assistant** for Gmail
 ---
 
 # NOTE : 
-**- This README.md file is for local system setup, codes files(server.py & index.html) for local system are separately attached in different folder. But they follow same folder structure as per deployed.**
+**- Codes files(server.py & index.html) which are in app/... directory are not for local system and those are separately attached in different folder called `local system folder` folder. But they follow same folder structure as per deployed.**
 **- These files are only separated just to prevent any confusions while running files on local system.**
 
 ## Dependencies  
@@ -193,4 +193,3 @@ A live deployment of this Voice Assistant is available on Render:
 3. After consent, Google redirects to `/oauth2callback`. The app stores `token.json` and you can return to the original tab to retry scheduling.
 
 **Note : Browser popups should be enabled.**
-
