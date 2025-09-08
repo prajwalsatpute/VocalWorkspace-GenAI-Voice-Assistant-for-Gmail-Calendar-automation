@@ -496,7 +496,15 @@ def process_text():
                 local_tz_name = get_localzone_name()
             except Exception:
                 local_tz_name = "UTC"
-            parsed['timezone'] = local_tz_name
+
+            # Only use the server local tz if no timezone was already provided
+            # (e.g., by the client via client_timezone). This prevents overwriting
+            # the browser/client timezone which causes scheduling shifts.
+            if not parsed.get('timezone'):
+                parsed['timezone'] = local_tz_name
+                print("[process-text] is_relative -> using server local_tz:", local_tz_name)
+            else:
+                print("[process-text] is_relative -> keeping parsed timezone:", parsed.get('timezone'))
 
             def _strip_offset_from_iso(iso_str):
                 if not iso_str:
@@ -519,9 +527,11 @@ def process_text():
 
     except Exception as e:
         print("Warning: relative-time handling error:", e)
-
-    # 2) Normalize and autofill sensible defaults (timezone, end time, title, minimal clarifications)
+        
+    print("[process-text] BEFORE normalize_parsed_intent -> timezone:", parsed.get('timezone'), "start:", parsed.get('start_datetime'))
     parsed = normalize_parsed_intent(parsed)
+    print("[process-text] AFTER normalize_parsed_intent -> timezone:", parsed.get('timezone'), "start:", parsed.get('start_datetime'), "end:", parsed.get('end_datetime'))
+
     if parsed.get('clarify'):
         return jsonify({"status":"clarify", "questions": parsed['clarify'], "message": parsed['clarify'][0]})
     creds = get_google_credentials()
