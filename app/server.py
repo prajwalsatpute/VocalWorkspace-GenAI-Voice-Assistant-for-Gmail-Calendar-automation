@@ -50,7 +50,7 @@ if os.environ.get("GOOGLE_TOKEN_JSON"):
         print("[startup] GOOGLE_TOKEN_JSON is not valid JSON.")
     except Exception as e:
         print("[startup] Failed to write GOOGLE_TOKEN_JSON to token.json:", e)
-        
+
 SCOPES = [
     'https://www.googleapis.com/auth/gmail.send',
     'https://www.googleapis.com/auth/calendar.events',
@@ -760,4 +760,5 @@ def process_audio():
                 pass
 
 if __name__ == '__main__':
-    app.run(port=5000, debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
