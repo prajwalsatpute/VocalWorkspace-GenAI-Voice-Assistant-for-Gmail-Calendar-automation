@@ -1,4 +1,4 @@
-# Voice-enabled GenAI Assistant
+# VocalWorkspace – GenAI Voice Assistant for Gmail & Calendar automation
 
 This is a assignment project that builds a **voice-enabled assistant** for Gmail and Google Calendar. The assistant understands spoken commands, converts them into actions, and performs tasks like:  
 
