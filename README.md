@@ -159,7 +159,7 @@ requests
 
 A live deployment of this Voice Assistant is available on Render:
 
-- Public app URL: [voice-assistant-3h84](https://voice-assistant-3h84.onrender.com) `https://voice-assistant-3h84.onrender.com`
+- Public app URL: [voice-assistant-3h84](https://voice-assistant-3h84.onrender.com)
 
 ### How this deployment works
 
