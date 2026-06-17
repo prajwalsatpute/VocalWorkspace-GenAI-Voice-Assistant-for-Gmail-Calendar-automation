@@ -193,3 +193,10 @@ A live deployment of this Voice Assistant is available on Render:
 3. After consent, Google redirects to `/oauth2callback`. The app stores `token.json` and you can return to the original tab to retry scheduling.
 
 **Note : Browser popups should be enabled for google authorisation.**
+
+
+This project was done as part of the personal development while exploring the AI and it's capabilities.
+
+## Author
+
+Prajwal Satpute
