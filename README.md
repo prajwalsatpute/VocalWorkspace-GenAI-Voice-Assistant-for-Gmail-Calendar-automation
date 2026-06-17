@@ -195,7 +195,7 @@ A live deployment of this Voice Assistant is available on Render:
 **Note : Browser popups should be enabled for google authorisation.**
 
 
-####This project was done as part of the personal development while exploring the AI and it's capabilities.
+#### This project was done as part of the personal development while exploring the AI and it's capabilities.
 
 ## Author
 
